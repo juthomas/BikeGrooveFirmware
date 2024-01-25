@@ -44,12 +44,29 @@ void onBluetoothConnect(esp_a2d_connection_state_t state, void *)
     a2dp_sink.init_i2s();
 
 
-    for (unsigned int i = 0; i < no_101_wav_len; i++)
+    // for (unsigned int i = 0; i < no_101_wav_len; i++)
+    // {
+    //   audio_ble_wav_ram[i] = pgm_read_byte(&no_101_wav[i]);
+    // }
+    // a2dp_sink.audio_data_callback((uint8_t *)audio_ble_wav_ram, no_101_wav_len);
+
+
+
+
+    for (unsigned int i = 0; i < 60000; i++)
     {
-      audio_ble_wav_ram[i] = pgm_read_byte(&no_101_wav[i]);
+      audio_ble_wav_ram[i] = pgm_read_byte(&audio_ble_wav[i]);
     }
 
-    a2dp_sink.audio_data_callback((uint8_t *)audio_ble_wav_ram, no_101_wav_len);
+    a2dp_sink.audio_data_callback((uint8_t *)audio_ble_wav_ram, 60000);
+
+    for (unsigned int i = 0; i < audio_ble_wav_len - 60000; i++)
+    {
+      audio_ble_wav_ram[i] = pgm_read_byte(&audio_ble_wav[60000 + i]);
+    }
+    a2dp_sink.audio_data_callback((uint8_t *)audio_ble_wav_ram, audio_ble_wav_len - 60000);
+
+
     // i2s_driver_uninstall((i2s_port_t)0);
     // a2dp_sink.set_i2s_active(false);
     // a2dp_sink.set_i2s_active(true);

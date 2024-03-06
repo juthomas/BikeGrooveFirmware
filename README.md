@@ -1,7 +1,7 @@
 
 ## Pins Attribution
 ### Amplificators :
-- Activate (High): `IO27`
+- Activate (High): `IO17`
 - I2S :
   - bck (BCLK) : `IO27`
   - ws (LRCLK) : `IO26`

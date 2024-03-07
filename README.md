@@ -13,7 +13,7 @@
  - Up SW4    : `IO23`
 
 ### Battery Probe :
-- Voltage : `IO21` * 2
+- Voltage : `IO13` * 2
 
 ### Leds :
  - Blue : `IO19`

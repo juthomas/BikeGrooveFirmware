@@ -21,6 +21,12 @@
 
 ## Import Sound
 
+### Create Voice
+
+https://ttsmp3.com/ai  
+Params : `Echo (male)`  
+Speed : `0.9`  
+
 ### Audacity :
 
 Project Rate (Bottom) : `88200`  

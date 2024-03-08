@@ -18,6 +18,8 @@ extern const unsigned int bluetooth_disconnected_wav_len;
 
 unsigned int commandRequest = 0;
 
+bool connected = true;
+
 const unsigned int chunkSize = 60000;
 uint8_t audio_ble_wav_ram[chunkSize];
 
@@ -159,7 +161,7 @@ void setup()
   pinMode(18, OUTPUT); // Red Led
   pinMode(17, OUTPUT); // Enable I2S
   digitalWrite(17, HIGH);
-  pinMode(21, INPUT); // Voltage Probe
+  pinMode(13, INPUT); // Voltage Probe
   pinMode(33, INPUT); // Power
   pinMode(22, INPUT); // Down
   pinMode(23, INPUT); // Up
@@ -175,17 +177,31 @@ void setup()
       .data_in_num = I2S_PIN_NO_CHANGE};
   a2dp_sink.set_pin_config(my_pin_config);
   a2dp_sink.set_auto_reconnect(true);
-  a2dp_sink.start("--Bike Groove");
+  a2dp_sink.start("--Bike Groove 2");
   a2dp_sink.set_on_connection_state_changed(onBluetoothConnect2);
   a2dp_sink.set_i2s_active(true);
   readSound(bike_groove_on_wav, bike_groove_on_wav_len);
+  a2dp_sink.set_auto_reconnect(true);
 }
+
+int current_volume = 14;
 
 void loop()
 {
   static bool ledState = false;
-  digitalWrite(19, ledState);
-  digitalWrite(18, !ledState);
+  float batteryLevel = (float)analogRead(13) * 7.1 / 4096;
+  Serial.printf("Probe : %fV\n", batteryLevel);
+
+  if (ledState)
+  {
+    digitalWrite(batteryLevel < 3.3 ? 18 : 19, HIGH);
+  }
+  else
+  {
+    digitalWrite(19, LOW);
+    digitalWrite(18, LOW);
+  }
+
   ledState = !ledState;
   delay(500); // do nothing
 
@@ -207,8 +223,8 @@ void loop()
   {
     Serial.printf("Start/Stop\n");
     if (a2dp_sink.is_i2s_active) // Fix ça
-      // a2dp_sink.pause();
-    a2dp_sink.execute_avrc_command(0x46);
+                                 // a2dp_sink.pause();
+      a2dp_sink.execute_avrc_command(0x46);
 
     else
       a2dp_sink.play();
@@ -217,16 +233,22 @@ void loop()
 
   if (commandRequest & UP_REQUEST)
   {
-    Serial.printf("(up) Current Volume : %d-%d\n", a2dp_sink.get_volume());
     // a2dp_sink.set_volume(a2dp_sink.get_volume() + 1);
-    a2dp_sink.execute_avrc_command(0x41);
+    current_volume = current_volume < 14 ? current_volume + 1 : current_volume;
+    a2dp_sink.set_volume(current_volume * 8 + 15);
+
+    Serial.printf("(up) Current Volume : %d-%d\n", a2dp_sink.get_volume(), current_volume);
+    // a2dp_sink.execute_avrc_command(0x41);
     commandRequest = commandRequest & ~UP_REQUEST;
   }
 
   if (commandRequest & DOWN_REQUEST)
   {
-    Serial.printf("(down) Current Volume : %d\n", a2dp_sink.get_volume());
-    a2dp_sink.set_volume(a2dp_sink.get_volume() - 1);
+    // current_volume -= 1;
+    current_volume = current_volume > 0 ? current_volume - 1 : current_volume;
+    a2dp_sink.set_volume(current_volume * 8 + 15);
+    Serial.printf("(down) Current Volume : %d-%d\n", a2dp_sink.get_volume(), current_volume);
+
     commandRequest = commandRequest & ~DOWN_REQUEST;
   }
   // Serial.printf("Active 1 : %d\n",a2dp_sink.spp_active);

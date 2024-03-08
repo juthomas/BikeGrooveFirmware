@@ -4,25 +4,44 @@
 
 BluetoothA2DPSink a2dp_sink;
 
+
+/* Audio Files */
 extern const uint8_t PROGMEM bike_groove_on_wav[];
-extern const unsigned int bike_groove_on_wav_len;
+extern const uint32_t bike_groove_on_wav_len;
 
 extern const uint8_t PROGMEM bike_groove_off_wav[];
-extern const unsigned int bike_groove_off_wav_len;
+extern const uint32_t bike_groove_off_wav_len;
 
 extern const uint8_t PROGMEM bluetooth_connected_wav[];
-extern const unsigned int bluetooth_connected_wav_len;
+extern const uint32_t bluetooth_connected_wav_len;
 
 extern const uint8_t PROGMEM bluetooth_disconnected_wav[];
-extern const unsigned int bluetooth_disconnected_wav_len;
+extern const uint32_t bluetooth_disconnected_wav_len;
 
-unsigned int commandRequest = 0;
-
-bool connected = true;
-
-const unsigned int chunkSize = 60000;
+/* Audio Tmp */
+const uint32_t chunkSize = 60000;
 uint8_t audio_ble_wav_ram[chunkSize];
 
+/* Bluetooth autoconnect variable (May be useless) */
+bool connected = true;
+
+/* Volume modifier (0-14) */
+int16_t current_volume = 14;
+
+/* Buttons Commands Requests */
+uint32_t commandRequest = 0;
+
+/* Buttons Utilities */
+volatile bool isStartPressed = false;
+volatile uint32_t startPressedTime = 0;
+
+volatile bool isDownPressed = false;
+volatile uint32_t downPressedTime = 0;
+
+volatile bool isUpPressed = false;
+volatile uint32_t upPressedTime = 0;
+
+/* Buttons Requests types */
 enum requests
 {
   START_REQUEST = 1,
@@ -32,9 +51,23 @@ enum requests
   DOWN_REQUEST = 1 << 4,
 };
 
+/* Buttons IO Attribution */
 #define START_BUTTON 33
 #define DOWN_BUTTON 22
 #define UP_BUTTON 23
+
+/* Leds IO Attribution */
+#define RED_LED 18
+#define BLUE_LED 19
+
+/* I2S IO Attribution */
+#define I2S_ENABLE 17
+#define I2S_BCLK 27
+#define I2S_LRCLK 26
+#define I2S_DIN 25
+
+/* Probe IO Attribution */
+#define VOLTAGE_PROBE 13
 
 void readSound(const uint8_t PROGMEM sound[], uint32_t sound_len)
 {
@@ -73,15 +106,6 @@ void onBluetoothConnect2(esp_a2d_connection_state_t state, void *)
     // readSound(bluetooth_disconnected_wav, bluetooth_disconnected_wav_len);
   }
 }
-
-volatile bool isStartPressed = false;
-volatile unsigned long startPressedTime = 0;
-
-volatile bool isDownPressed = false;
-volatile unsigned long downPressedTime = 0;
-
-volatile bool isUpPressed = false;
-volatile unsigned long upPressedTime = 0;
 
 void IRAM_ATTR StartPress()
 {
@@ -157,23 +181,23 @@ void IRAM_ATTR UpPress()
 void setup()
 {
   Serial.begin(115200);
-  pinMode(19, OUTPUT); // Blue Led
-  pinMode(18, OUTPUT); // Red Led
-  pinMode(17, OUTPUT); // Enable I2S
-  digitalWrite(17, HIGH);
-  pinMode(13, INPUT); // Voltage Probe
-  pinMode(33, INPUT); // Power
-  pinMode(22, INPUT); // Down
-  pinMode(23, INPUT); // Up
+  pinMode(BLUE_LED, OUTPUT); // Blue Led
+  pinMode(RED_LED, OUTPUT); // Red Led
+  pinMode(I2S_ENABLE, OUTPUT); // Enable I2S
+  digitalWrite(I2S_ENABLE, HIGH);
+  pinMode(VOLTAGE_PROBE, INPUT); // Voltage Probe
+  pinMode(START_BUTTON, INPUT); // Power
+  pinMode(DOWN_BUTTON, INPUT); // Down
+  pinMode(UP_BUTTON, INPUT); // Up
 
   attachInterrupt(digitalPinToInterrupt(START_BUTTON), StartPress, CHANGE);
   attachInterrupt(digitalPinToInterrupt(DOWN_BUTTON), DownPress, CHANGE);
   attachInterrupt(digitalPinToInterrupt(UP_BUTTON), UpPress, CHANGE);
 
   i2s_pin_config_t my_pin_config = {
-      .bck_io_num = 27,
-      .ws_io_num = 26,
-      .data_out_num = 25,
+      .bck_io_num = I2S_BCLK,
+      .ws_io_num = I2S_LRCLK,
+      .data_out_num = I2S_DIN,
       .data_in_num = I2S_PIN_NO_CHANGE};
   a2dp_sink.set_pin_config(my_pin_config);
   a2dp_sink.set_auto_reconnect(true);
@@ -184,8 +208,6 @@ void setup()
   a2dp_sink.set_auto_reconnect(true);
 }
 
-int current_volume = 14;
-
 void loop()
 {
   static bool ledState = false;
@@ -194,12 +216,12 @@ void loop()
 
   if (ledState)
   {
-    digitalWrite(batteryLevel < 3.3 ? 18 : 19, HIGH);
+    digitalWrite(batteryLevel < 3.3 ? RED_LED : BLUE_LED, HIGH);
   }
   else
   {
-    digitalWrite(19, LOW);
-    digitalWrite(18, LOW);
+    digitalWrite(BLUE_LED, LOW);
+    digitalWrite(RED_LED, LOW);
   }
 
   ledState = !ledState;

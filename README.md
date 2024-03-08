@@ -1,4 +1,3 @@
-
 ## Pins Attribution
 ### Amplificators :
 - Activate (High): `IO17`
@@ -18,6 +17,7 @@
 ### Leds :
  - Blue : `IO19`
  - Red  : `IO18`
+---
 
 ## Import Sound
 
@@ -38,3 +38,8 @@ Audio Format : `Linear PCM, 16 bit little-endian signed integer, 88200 Hz`
 ```shell
 xxd -i file.wav file.c
 ```
+---
+## Library Adaptation
+
+Removing protected attribute in `BluetoothA2DPSink.h` & `BluetoothA2DPSinkQueued.h`
+Adding `NULL` param in `vRingbufferGetInfo`

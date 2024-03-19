@@ -28,6 +28,9 @@ bool connected = true;
 /* Volume modifier (0-14) */
 int16_t current_volume = 14;
 
+/* ESP Status */
+volatile bool isAwake = false;
+
 /* Buttons Commands Requests */
 uint32_t commandRequest = 0;
 
@@ -52,7 +55,7 @@ enum requests
 };
 
 /* Buttons IO Attribution */
-#define START_BUTTON 33
+#define START_BUTTON GPIO_NUM_33
 #define DOWN_BUTTON 22
 #define UP_BUTTON 23
 
@@ -112,13 +115,14 @@ void IRAM_ATTR StartPress()
   Serial.println("Start Button Pressed");
   if (digitalRead(START_BUTTON) == LOW)
   {
+    Serial.println("Start Button Pushing");
     isStartPressed = true;
     startPressedTime = millis();
   }
-  else
+  else if (isStartPressed == true)
   {
     isStartPressed = false;
-    if (millis() - startPressedTime < 500)
+    if (millis() - startPressedTime < 2000)
     {
       Serial.println("Start Button Short Press");
       commandRequest |= START_REQUEST;
@@ -126,6 +130,8 @@ void IRAM_ATTR StartPress()
     else
     {
       Serial.println("Start Button Long Press");
+      digitalWrite(I2S_ENABLE, LOW);
+      esp_deep_sleep_start();
     }
   }
 }
@@ -187,12 +193,34 @@ void setup()
   digitalWrite(I2S_ENABLE, HIGH);
   pinMode(VOLTAGE_PROBE, INPUT); // Voltage Probe
   pinMode(START_BUTTON, INPUT); // Power
+  esp_sleep_enable_ext0_wakeup(START_BUTTON, 0);
   pinMode(DOWN_BUTTON, INPUT); // Down
   pinMode(UP_BUTTON, INPUT); // Up
+
+  // Vérifie si l'ESP32 a été réveillé par le bouton
+  if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0) {
+    unsigned long timePressed = millis();
+    // Boucle tant que le bouton est pressé
+    while(digitalRead(START_BUTTON) == LOW) {
+      // Si le bouton est pressé pendant plus de 2 secondes
+      // if (millis() - timePressed > 2000) {
+      //   // Placez ici le code à exécuter après 2 secondes de pression
+      //   break;
+      // }
+    }
+
+    // Si le bouton est relâché avant 2 secondes, remettre en deep sleep
+    if (millis() - timePressed <= 2000) {
+      Serial.println("Start Button Pressed too quickly to wake up");
+      digitalWrite(I2S_ENABLE, LOW);
+      esp_deep_sleep_start();
+    }
+  }
 
   attachInterrupt(digitalPinToInterrupt(START_BUTTON), StartPress, CHANGE);
   attachInterrupt(digitalPinToInterrupt(DOWN_BUTTON), DownPress, CHANGE);
   attachInterrupt(digitalPinToInterrupt(UP_BUTTON), UpPress, CHANGE);
+
 
   i2s_pin_config_t my_pin_config = {
       .bck_io_num = I2S_BCLK,

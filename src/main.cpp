@@ -2,8 +2,10 @@
 
 #include "BluetoothA2DPSink.h"
 
-BluetoothA2DPSink a2dp_sink;
+// DEBUG VAR FOR INTERRUPTS
+#define DEBUG false
 
+BluetoothA2DPSink a2dp_sink;
 
 /* Audio Files */
 extern const uint8_t PROGMEM bike_groove_on_wav[];
@@ -110,76 +112,143 @@ void onBluetoothConnect2(esp_a2d_connection_state_t state, void *)
   }
 }
 
+hw_timer_t *startPressTimer = NULL;
+hw_timer_t *downPressTimer = NULL;
+hw_timer_t *upPressTimer = NULL;
+
+void IRAM_ATTR StartPressTimerCallback()
+{
+  if (DEBUG)
+  {
+    Serial.println("Start Button Long Press");
+  }
+  digitalWrite(I2S_ENABLE, LOW);
+  esp_deep_sleep_start();
+}
+
 void IRAM_ATTR StartPress()
 {
-  Serial.println("Start Button Pressed");
+  if (DEBUG)
+  {
+    Serial.println("Start Button Pressed");
+  }
   if (digitalRead(START_BUTTON) == LOW)
   {
-    Serial.println("Start Button Pushing");
+    if (DEBUG)
+    {
+      Serial.println("Start Button Pushing");
+    }
     isStartPressed = true;
     startPressedTime = millis();
+    timerAlarmWrite(startPressTimer, 2000 * 1000, false);
+    timerRestart(startPressTimer);
+    timerAlarmEnable(startPressTimer);
+    // Start Timer
   }
   else if (isStartPressed == true)
   {
     isStartPressed = false;
     if (millis() - startPressedTime < 2000)
     {
-      Serial.println("Start Button Short Press");
+      if (DEBUG)
+      {
+        Serial.println("Start Button Short Press");
+      }
       commandRequest |= START_REQUEST;
+      timerAlarmDisable(startPressTimer);
+      // Stop Timer
     }
     else
     {
-      Serial.println("Start Button Long Press");
-      digitalWrite(I2S_ENABLE, LOW);
-      esp_deep_sleep_start();
+      // Serial.println("Start Button Long Press");
+      // digitalWrite(I2S_ENABLE, LOW);
+      // esp_deep_sleep_start();
     }
   }
 }
 
+void IRAM_ATTR DownPressTimerCallback()
+{
+  if (DEBUG)
+  {
+    Serial.println("Down Button Long Press");
+  }
+  commandRequest |= PREVIOUS_REQUEST;
+}
+
 void IRAM_ATTR DownPress()
 {
-  Serial.println("Down Button Pressed");
+  if (DEBUG)
+  {
+    Serial.println("Down Button Pressed");
+  }
   if (digitalRead(DOWN_BUTTON) == LOW)
   {
     isDownPressed = true;
     downPressedTime = millis();
+    timerAlarmWrite(downPressTimer, 500 * 1000, false);
+    timerRestart(downPressTimer);
+    timerAlarmEnable(downPressTimer);
   }
   else
   {
     isDownPressed = false;
     if (millis() - downPressedTime < 500)
     {
-      Serial.println("Down Button Short Press");
+      if (DEBUG)
+      {
+        Serial.println("Down Button Short Press");
+      }
       commandRequest |= DOWN_REQUEST;
+      timerAlarmDisable(downPressTimer);
     }
     else
     {
-      Serial.println("Down Button Long Press");
-      commandRequest |= PREVIOUS_REQUEST;
+      // Serial.println("Down Button Long Press");
+      // commandRequest |= PREVIOUS_REQUEST;
     }
   }
 }
 
+void IRAM_ATTR UpPressTimerCallback()
+{
+  if (DEBUG)
+  {
+    Serial.println("Up Button Long Press");
+  }
+  commandRequest |= NEXT_REQUEST;
+}
+
 void IRAM_ATTR UpPress()
 {
-  Serial.println("Up Button Pressed");
+  if (DEBUG)
+  {
+    Serial.println("Up Button Pressed");
+  }
   if (digitalRead(UP_BUTTON) == LOW)
   {
     isUpPressed = true;
     upPressedTime = millis();
+    timerAlarmWrite(upPressTimer, 500 * 1000, false);
+    timerRestart(upPressTimer);
+    timerAlarmEnable(upPressTimer);
   }
   else
   {
     isUpPressed = false;
     if (millis() - upPressedTime < 500)
     {
-      Serial.println("Up Button Short Press");
+      if (DEBUG)
+      {
+        Serial.println("Up Button Short Press");
+      }
       commandRequest |= UP_REQUEST;
+      timerAlarmDisable(upPressTimer);
     }
     else
     {
-      Serial.println("Up Button Long Press");
-      commandRequest |= NEXT_REQUEST;
+      // Serial.println("Up Button Long Press");
+      // commandRequest |= NEXT_REQUEST;
     }
   }
 }
@@ -187,30 +256,42 @@ void IRAM_ATTR UpPress()
 void setup()
 {
   Serial.begin(115200);
-  pinMode(BLUE_LED, OUTPUT); // Blue Led
-  pinMode(RED_LED, OUTPUT); // Red Led
+  pinMode(BLUE_LED, OUTPUT);   // Blue Led
+  pinMode(RED_LED, OUTPUT);    // Red Led
   pinMode(I2S_ENABLE, OUTPUT); // Enable I2S
   digitalWrite(I2S_ENABLE, HIGH);
   pinMode(VOLTAGE_PROBE, INPUT); // Voltage Probe
-  pinMode(START_BUTTON, INPUT); // Power
+  pinMode(START_BUTTON, INPUT);  // Power
   esp_sleep_enable_ext0_wakeup(START_BUTTON, 0);
   pinMode(DOWN_BUTTON, INPUT); // Down
-  pinMode(UP_BUTTON, INPUT); // Up
+  pinMode(UP_BUTTON, INPUT);   // Up
 
+  // Creation des timers pour l'appui des boutons
+  startPressTimer = timerBegin(0, 80, true);
+  downPressTimer = timerBegin(1, 80, true);
+  upPressTimer = timerBegin(2, 80, true);
+
+  timerAttachInterrupt(startPressTimer, &StartPressTimerCallback, true);
+  timerAttachInterrupt(downPressTimer, &DownPressTimerCallback, true);
+  timerAttachInterrupt(upPressTimer, &UpPressTimerCallback, true);
   // Vérifie si l'ESP32 a été réveillé par le bouton
-  if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0) {
+  if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0)
+  {
     unsigned long timePressed = millis();
     // Boucle tant que le bouton est pressé
-    while(digitalRead(START_BUTTON) == LOW) {
+    while (digitalRead(START_BUTTON) == LOW)
+    {
       // Si le bouton est pressé pendant plus de 2 secondes
-      // if (millis() - timePressed > 2000) {
-      //   // Placez ici le code à exécuter après 2 secondes de pression
-      //   break;
-      // }
+      if (millis() - timePressed > 2000)
+      {
+        // Placez ici le code à exécuter après 2 secondes de pression
+        break;
+      }
     }
 
     // Si le bouton est relâché avant 2 secondes, remettre en deep sleep
-    if (millis() - timePressed <= 2000) {
+    if (millis() - timePressed <= 2000)
+    {
       Serial.println("Start Button Pressed too quickly to wake up");
       digitalWrite(I2S_ENABLE, LOW);
       esp_deep_sleep_start();
@@ -221,7 +302,6 @@ void setup()
   attachInterrupt(digitalPinToInterrupt(DOWN_BUTTON), DownPress, CHANGE);
   attachInterrupt(digitalPinToInterrupt(UP_BUTTON), UpPress, CHANGE);
 
-
   i2s_pin_config_t my_pin_config = {
       .bck_io_num = I2S_BCLK,
       .ws_io_num = I2S_LRCLK,
@@ -229,8 +309,9 @@ void setup()
       .data_in_num = I2S_PIN_NO_CHANGE};
   a2dp_sink.set_pin_config(my_pin_config);
   a2dp_sink.set_auto_reconnect(true);
-  a2dp_sink.start("--Bike Groove 2");
+  a2dp_sink.start("Bike Groove");
   a2dp_sink.set_on_connection_state_changed(onBluetoothConnect2);
+  a2dp_sink.set_volume(current_volume * 8 + 15);
   a2dp_sink.set_i2s_active(true);
   readSound(bike_groove_on_wav, bike_groove_on_wav_len);
   a2dp_sink.set_auto_reconnect(true);

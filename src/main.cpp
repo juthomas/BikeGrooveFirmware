@@ -112,10 +112,6 @@ void onBluetoothConnect2(esp_a2d_connection_state_t state, void *)
   }
 }
 
-// hw_timer_t *startPressTimer = NULL;
-// hw_timer_t *downPressTimer = NULL;
-// hw_timer_t *upPressTimer = NULL;
-
 TaskHandle_t StartPressTaskHandle = NULL;
 TaskHandle_t DownPressTaskHandle = NULL;
 TaskHandle_t UpPressTaskHandle = NULL;
@@ -181,16 +177,6 @@ void IRAM_ATTR StartPress()
   }
 }
 
-// void IRAM_ATTR DownPressTimerCallback()
-// {
-//   if (DEBUG)
-//   {
-//     Serial.println("Down Button Long Press");
-//   }
-//   commandRequest |= PREVIOUS_REQUEST;
-// }
-
-
 void DownPressTask(void *parameter)
 {
   if (DEBUG)
@@ -235,15 +221,6 @@ void IRAM_ATTR DownPress()
     }
   }
 }
-
-// void IRAM_ATTR UpPressTimerCallback()
-// {
-//   if (DEBUG)
-//   {
-//     Serial.println("Up Button Long Press");
-//   }
-//   commandRequest |= NEXT_REQUEST;
-// }
 
 void UpPressTask(void *parameter)
 {
@@ -303,14 +280,6 @@ void setup()
   pinMode(DOWN_BUTTON, INPUT); // Down
   pinMode(UP_BUTTON, INPUT);   // Up
 
-  // Creation des timers pour l'appui des boutons
-  // startPressTimer = timerBegin(0, 80, true);
-  // downPressTimer = timerBegin(1, 80, true);
-  // upPressTimer = timerBegin(2, 80, true);
-
-  // timerAttachInterrupt(startPressTimer, &StartPressTimerCallback, true);
-  // timerAttachInterrupt(downPressTimer, &DownPressTimerCallback, true);
-  // timerAttachInterrupt(upPressTimer, &UpPressTimerCallback, true);
   // Vérifie si l'ESP32 a été réveillé par le bouton
   if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0)
   {
@@ -321,7 +290,7 @@ void setup()
       // Si le bouton est pressé pendant plus de 2 secondes
       if (millis() - timePressed > 2000)
       {
-        // Placez ici le code à exécuter après 2 secondes de pression
+        // Sort de la boucle au bout de 2s
         break;
       }
     }

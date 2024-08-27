@@ -49,3 +49,8 @@ xxd -i file.wav file.c
 
 Removing protected attribute in `BluetoothA2DPSink.h` & `BluetoothA2DPSinkQueued.h`  
 Adding `NULL` param in `vRingbufferGetInfo`
+
+## TODO List
+- Use Tasking instead of loop for critical tasks
+- Implement bluetooth break to read custom sounds
+- Implement equalizer

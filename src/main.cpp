@@ -3,7 +3,7 @@
 #include "BluetoothA2DPSink.h"
 
 // DEBUG VAR FOR INTERRUPTS
-#define DEBUG false
+#define DEBUG true
 
 BluetoothA2DPSink a2dp_sink;
 
@@ -112,18 +112,33 @@ void onBluetoothConnect2(esp_a2d_connection_state_t state, void *)
   }
 }
 
-hw_timer_t *startPressTimer = NULL;
-hw_timer_t *downPressTimer = NULL;
-hw_timer_t *upPressTimer = NULL;
+// hw_timer_t *startPressTimer = NULL;
+// hw_timer_t *downPressTimer = NULL;
+// hw_timer_t *upPressTimer = NULL;
 
-void IRAM_ATTR StartPressTimerCallback()
+TaskHandle_t StartPressTaskHandle = NULL;
+TaskHandle_t DownPressTaskHandle = NULL;
+TaskHandle_t UpPressTaskHandle = NULL;
+
+void StartPressTask(void *parameter)
 {
   if (DEBUG)
   {
-    Serial.println("Start Button Long Press");
+    Serial.println("Start Button Long Press Detected (Task)");
   }
+  vTaskDelay(2000 / portTICK_PERIOD_MS);
+
+  Serial.println("Bike Groove Off");
+  readSound(bike_groove_off_wav, bike_groove_off_wav_len);
+
+  vTaskDelay(1000 / portTICK_PERIOD_MS); // Attendre 1 seconde pour le message vocal
+
+  // Mettre en sommeil profond
+  Serial.println("Deep Sleep Actived");
   digitalWrite(I2S_ENABLE, LOW);
   esp_deep_sleep_start();
+
+  vTaskDelete(NULL);
 }
 
 void IRAM_ATTR StartPress()
@@ -140,10 +155,7 @@ void IRAM_ATTR StartPress()
     }
     isStartPressed = true;
     startPressedTime = millis();
-    timerAlarmWrite(startPressTimer, 2000 * 1000, false);
-    timerRestart(startPressTimer);
-    timerAlarmEnable(startPressTimer);
-    // Start Timer
+    xTaskCreate(StartPressTask, "StartPressTask", 2048, NULL, 1, &StartPressTaskHandle);
   }
   else if (isStartPressed == true)
   {
@@ -155,7 +167,9 @@ void IRAM_ATTR StartPress()
         Serial.println("Start Button Short Press");
       }
       commandRequest |= START_REQUEST;
-      timerAlarmDisable(startPressTimer);
+      // timerAlarmDisable(startPressTimer);
+      vTaskDelete(StartPressTaskHandle);
+      StartPressTaskHandle = NULL;
       // Stop Timer
     }
     else
@@ -167,13 +181,25 @@ void IRAM_ATTR StartPress()
   }
 }
 
-void IRAM_ATTR DownPressTimerCallback()
+// void IRAM_ATTR DownPressTimerCallback()
+// {
+//   if (DEBUG)
+//   {
+//     Serial.println("Down Button Long Press");
+//   }
+//   commandRequest |= PREVIOUS_REQUEST;
+// }
+
+
+void DownPressTask(void *parameter)
 {
   if (DEBUG)
   {
-    Serial.println("Down Button Long Press");
+    Serial.println("Down Button Long Press (Task)");
   }
+  vTaskDelay(500 / portTICK_PERIOD_MS);
   commandRequest |= PREVIOUS_REQUEST;
+  vTaskDelete(NULL);
 }
 
 void IRAM_ATTR DownPress()
@@ -186,9 +212,8 @@ void IRAM_ATTR DownPress()
   {
     isDownPressed = true;
     downPressedTime = millis();
-    timerAlarmWrite(downPressTimer, 500 * 1000, false);
-    timerRestart(downPressTimer);
-    timerAlarmEnable(downPressTimer);
+    xTaskCreate(DownPressTask, "DownPressTask", 2048, NULL, 1, &DownPressTaskHandle);
+
   }
   else
   {
@@ -200,7 +225,8 @@ void IRAM_ATTR DownPress()
         Serial.println("Down Button Short Press");
       }
       commandRequest |= DOWN_REQUEST;
-      timerAlarmDisable(downPressTimer);
+      vTaskDelete(DownPressTaskHandle);
+      DownPressTaskHandle = NULL;
     }
     else
     {
@@ -210,14 +236,26 @@ void IRAM_ATTR DownPress()
   }
 }
 
-void IRAM_ATTR UpPressTimerCallback()
+// void IRAM_ATTR UpPressTimerCallback()
+// {
+//   if (DEBUG)
+//   {
+//     Serial.println("Up Button Long Press");
+//   }
+//   commandRequest |= NEXT_REQUEST;
+// }
+
+void UpPressTask(void *parameter)
 {
   if (DEBUG)
   {
-    Serial.println("Up Button Long Press");
+    Serial.println("Up Button Long Press (Task)");
   }
+  vTaskDelay(500 / portTICK_PERIOD_MS);
   commandRequest |= NEXT_REQUEST;
+  vTaskDelete(NULL);
 }
+
 
 void IRAM_ATTR UpPress()
 {
@@ -229,9 +267,8 @@ void IRAM_ATTR UpPress()
   {
     isUpPressed = true;
     upPressedTime = millis();
-    timerAlarmWrite(upPressTimer, 500 * 1000, false);
-    timerRestart(upPressTimer);
-    timerAlarmEnable(upPressTimer);
+    xTaskCreate(UpPressTask, "UpPressTask", 2048, NULL, 1, &UpPressTaskHandle);
+
   }
   else
   {
@@ -243,7 +280,7 @@ void IRAM_ATTR UpPress()
         Serial.println("Up Button Short Press");
       }
       commandRequest |= UP_REQUEST;
-      timerAlarmDisable(upPressTimer);
+      vTaskDelete(UpPressTaskHandle);
     }
     else
     {
@@ -267,13 +304,13 @@ void setup()
   pinMode(UP_BUTTON, INPUT);   // Up
 
   // Creation des timers pour l'appui des boutons
-  startPressTimer = timerBegin(0, 80, true);
-  downPressTimer = timerBegin(1, 80, true);
-  upPressTimer = timerBegin(2, 80, true);
+  // startPressTimer = timerBegin(0, 80, true);
+  // downPressTimer = timerBegin(1, 80, true);
+  // upPressTimer = timerBegin(2, 80, true);
 
-  timerAttachInterrupt(startPressTimer, &StartPressTimerCallback, true);
-  timerAttachInterrupt(downPressTimer, &DownPressTimerCallback, true);
-  timerAttachInterrupt(upPressTimer, &UpPressTimerCallback, true);
+  // timerAttachInterrupt(startPressTimer, &StartPressTimerCallback, true);
+  // timerAttachInterrupt(downPressTimer, &DownPressTimerCallback, true);
+  // timerAttachInterrupt(upPressTimer, &UpPressTimerCallback, true);
   // Vérifie si l'ESP32 a été réveillé par le bouton
   if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0)
   {
@@ -325,7 +362,7 @@ void loop()
 
   if (ledState)
   {
-    digitalWrite(batteryLevel < 3.3 ? RED_LED : BLUE_LED, HIGH);
+    digitalWrite(batteryLevel < 3.4 ? RED_LED : BLUE_LED, HIGH);
   }
   else
   {

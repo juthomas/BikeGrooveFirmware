@@ -46,6 +46,8 @@ volatile uint32_t downPressedTime = 0;
 volatile bool isUpPressed = false;
 volatile uint32_t upPressedTime = 0;
 
+
+volatile bool soundPlayed = false;
 /* Buttons Requests types */
 enum requests
 {
@@ -73,6 +75,7 @@ enum requests
 
 /* Probe IO Attribution */
 #define VOLTAGE_PROBE 13
+#define USB_VOLTAGE_PROBE 32
 
 void readSound(const uint8_t PROGMEM sound[], uint32_t sound_len)
 {
@@ -125,10 +128,12 @@ void StartPressTask(void *parameter)
   vTaskDelay(2000 / portTICK_PERIOD_MS);
 
   Serial.println("Bike Groove Off");
+  soundPlayed = true;
   readSound(bike_groove_off_wav, bike_groove_off_wav_len);
 
   vTaskDelay(1000 / portTICK_PERIOD_MS); // Attendre 1 seconde pour le message vocal
 
+  soundPlayed = false;
   // Mettre en sommeil profond
   Serial.println("Deep Sleep Actived");
   digitalWrite(I2S_ENABLE, LOW);
@@ -272,14 +277,24 @@ void setup()
   Serial.begin(115200);
   pinMode(BLUE_LED, OUTPUT);   // Blue Led
   pinMode(RED_LED, OUTPUT);    // Red Led
-  pinMode(I2S_ENABLE, OUTPUT); // Enable I2S
-  digitalWrite(I2S_ENABLE, HIGH);
+
   pinMode(VOLTAGE_PROBE, INPUT); // Voltage Probe
+  pinMode(USB_VOLTAGE_PROBE, INPUT);// USB Voltage Probe
   pinMode(START_BUTTON, INPUT);  // Power
   esp_sleep_enable_ext0_wakeup(START_BUTTON, 0);
   pinMode(DOWN_BUTTON, INPUT); // Down
   pinMode(UP_BUTTON, INPUT);   // Up
 
+  pinMode(I2S_ENABLE, OUTPUT); // Enable I2S
+  float batteryLevel = (float)analogRead(VOLTAGE_PROBE) * 7.1 / 4096;  
+  digitalWrite(I2S_ENABLE, batteryLevel > 3.2 ? HIGH : LOW);
+if (batteryLevel < 3.2)
+{
+      Serial.println("test\n");
+      esp_deep_sleep_start();
+
+  // for(;;);
+}
   // Vérifie si l'ESP32 a été réveillé par le bouton
   if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0)
   {
@@ -315,7 +330,7 @@ void setup()
       .data_in_num = I2S_PIN_NO_CHANGE};
   a2dp_sink.set_pin_config(my_pin_config);
   a2dp_sink.set_auto_reconnect(true);
-  a2dp_sink.start("Bike Groove");
+  a2dp_sink.start("Hi-Fi Ride");
   a2dp_sink.set_on_connection_state_changed(onBluetoothConnect2);
   a2dp_sink.set_volume(current_volume * 8 + 15);
   a2dp_sink.set_i2s_active(true);
@@ -326,8 +341,15 @@ void setup()
 void loop()
 {
   static bool ledState = false;
-  float batteryLevel = (float)analogRead(13) * 7.1 / 4096;
+  float batteryLevel = (float)analogRead(VOLTAGE_PROBE) * 7.1 / 4096;
   Serial.printf("Probe : %fV\n", batteryLevel);
+  float usbVoltageLevel = (float)analogRead(USB_VOLTAGE_PROBE) * 7.1 / 4096;
+  Serial.printf("USB : %fV\n", usbVoltageLevel);
+
+  if (usbVoltageLevel > 2.5)
+  {
+
+  }
 
   if (ledState)
   {
@@ -371,10 +393,13 @@ void loop()
   if (commandRequest & UP_REQUEST)
   {
     // a2dp_sink.set_volume(a2dp_sink.get_volume() + 1);
-    current_volume = current_volume < 14 ? current_volume + 1 : current_volume;
-    a2dp_sink.set_volume(current_volume * 8 + 15);
+    // current_volume = current_volume < 14 ? current_volume + 1 : current_volume;
+    int testwtf = a2dp_sink.get_volume();
+    int tmp_current_volume = (a2dp_sink.get_volume() - 15) / 8 ;
+    tmp_current_volume = tmp_current_volume < 14 ? tmp_current_volume + 1 : tmp_current_volume;
+    a2dp_sink.set_volume(tmp_current_volume * 8 + 15);
 
-    Serial.printf("(up) Current Volume : %d-%d\n", a2dp_sink.get_volume(), current_volume);
+    Serial.printf("(up) Current Volume : %d-%d\n", a2dp_sink.get_volume(), tmp_current_volume);
     // a2dp_sink.execute_avrc_command(0x41);
     commandRequest = commandRequest & ~UP_REQUEST;
   }
@@ -382,9 +407,11 @@ void loop()
   if (commandRequest & DOWN_REQUEST)
   {
     // current_volume -= 1;
-    current_volume = current_volume > 0 ? current_volume - 1 : current_volume;
-    a2dp_sink.set_volume(current_volume * 8 + 15);
-    Serial.printf("(down) Current Volume : %d-%d\n", a2dp_sink.get_volume(), current_volume);
+    // current_volume = current_volume > 0 ? current_volume - 1 : current_volume;
+    int tmp_current_volume = (a2dp_sink.get_volume() - 15) / 8 ;
+    tmp_current_volume = tmp_current_volume > 0 ? tmp_current_volume - 1 : tmp_current_volume;
+    a2dp_sink.set_volume(tmp_current_volume * 8 + 15);
+    Serial.printf("(down) Current Volume : %d-%d\n", a2dp_sink.get_volume(), tmp_current_volume);
 
     commandRequest = commandRequest & ~DOWN_REQUEST;
   }

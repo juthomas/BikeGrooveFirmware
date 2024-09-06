@@ -116,8 +116,11 @@ void onBluetoothConnect2(esp_a2d_connection_state_t state, void *)
 }
 
 TaskHandle_t StartPressTaskHandle = NULL;
+TaskHandle_t StartPressShortTaskHandle = NULL;
 TaskHandle_t DownPressTaskHandle = NULL;
+TaskHandle_t DownPressShortTaskHandle = NULL;
 TaskHandle_t UpPressTaskHandle = NULL;
+TaskHandle_t UpPressShortTaskHandle = NULL;
 
 void StartPressTask(void *parameter)
 {
@@ -140,6 +143,18 @@ void StartPressTask(void *parameter)
   esp_deep_sleep_start();
 
   vTaskDelete(NULL);
+}
+
+void StartPressShortTask(void *parameter)
+{
+    Serial.printf("Start/Stop\n");
+    if (a2dp_sink.is_i2s_active) // Fix ça
+                                 // a2dp_sink.pause();
+      a2dp_sink.execute_avrc_command(0x46);
+    else
+      a2dp_sink.play();
+  vTaskDelete(NULL);
+
 }
 
 void IRAM_ATTR StartPress()
@@ -167,7 +182,8 @@ void IRAM_ATTR StartPress()
       {
         Serial.println("Start Button Short Press");
       }
-      commandRequest |= START_REQUEST;
+      xTaskCreate(StartPressShortTask, "StartPressShortTask", 2048, NULL, 1, &StartPressShortTaskHandle);
+      // commandRequest |= START_REQUEST;
       // timerAlarmDisable(startPressTimer);
       vTaskDelete(StartPressTaskHandle);
       StartPressTaskHandle = NULL;
@@ -189,7 +205,19 @@ void DownPressTask(void *parameter)
     Serial.println("Down Button Long Press (Task)");
   }
   vTaskDelay(500 / portTICK_PERIOD_MS);
-  commandRequest |= PREVIOUS_REQUEST;
+  // commandRequest |= PREVIOUS_REQUEST;
+  Serial.printf("Previous\n");
+  a2dp_sink.previous();
+  vTaskDelete(NULL);
+}
+
+void DownPressShortTask(void *parameter)
+{
+    int tmp_current_volume = (a2dp_sink.get_volume() - 15) / 8 ;
+    tmp_current_volume = tmp_current_volume > 0 ? tmp_current_volume - 1 : tmp_current_volume;
+    a2dp_sink.set_volume(tmp_current_volume * 8 + 15);
+    Serial.printf("(down) Current Volume : %d-%d\n", a2dp_sink.get_volume(), tmp_current_volume);
+
   vTaskDelete(NULL);
 }
 
@@ -215,7 +243,9 @@ void IRAM_ATTR DownPress()
       {
         Serial.println("Down Button Short Press");
       }
-      commandRequest |= DOWN_REQUEST;
+      xTaskCreate(DownPressShortTask, "DownPressShortTask", 2048, NULL, 1, &DownPressShortTaskHandle);
+
+      // commandRequest |= DOWN_REQUEST;
       vTaskDelete(DownPressTaskHandle);
       DownPressTaskHandle = NULL;
     }
@@ -234,10 +264,22 @@ void UpPressTask(void *parameter)
     Serial.println("Up Button Long Press (Task)");
   }
   vTaskDelay(500 / portTICK_PERIOD_MS);
-  commandRequest |= NEXT_REQUEST;
+  // commandRequest |= NEXT_REQUEST;
+  Serial.printf("Next\n");
+  a2dp_sink.next();
   vTaskDelete(NULL);
 }
 
+void UpPressShortTask(void *parameter)
+{
+    int testwtf = a2dp_sink.get_volume();
+    int tmp_current_volume = (a2dp_sink.get_volume() - 15) / 8 ;
+    tmp_current_volume = tmp_current_volume < 14 ? tmp_current_volume + 1 : tmp_current_volume;
+    a2dp_sink.set_volume(tmp_current_volume * 8 + 15);
+
+    Serial.printf("(up) Current Volume : %d-%d\n", a2dp_sink.get_volume(), tmp_current_volume);
+  vTaskDelete(NULL);
+}
 
 void IRAM_ATTR UpPress()
 {
@@ -261,8 +303,12 @@ void IRAM_ATTR UpPress()
       {
         Serial.println("Up Button Short Press");
       }
-      commandRequest |= UP_REQUEST;
+       xTaskCreate(UpPressShortTask, "UpPressShortTask", 2048, NULL, 1, &UpPressShortTaskHandle);
+
+      // commandRequest |= UP_REQUEST;
       vTaskDelete(UpPressTaskHandle);
+      UpPressTaskHandle = NULL;
+
     }
     else
     {
@@ -366,54 +412,54 @@ void loop()
 
   if (commandRequest & NEXT_REQUEST)
   {
-    Serial.printf("Next\n");
-    a2dp_sink.next();
-    commandRequest = commandRequest & ~NEXT_REQUEST;
+    // Serial.printf("Next\n");
+    // a2dp_sink.next();
+    // commandRequest = commandRequest & ~NEXT_REQUEST;
   }
 
   if (commandRequest & PREVIOUS_REQUEST)
   {
-    Serial.printf("Previous\n");
-    a2dp_sink.previous();
-    commandRequest = commandRequest & ~PREVIOUS_REQUEST;
+    // Serial.printf("Previous\n");
+    // a2dp_sink.previous();
+    // commandRequest = commandRequest & ~PREVIOUS_REQUEST;
   }
 
-  if (commandRequest & START_REQUEST)
-  {
-    Serial.printf("Start/Stop\n");
-    if (a2dp_sink.is_i2s_active) // Fix ça
-                                 // a2dp_sink.pause();
-      a2dp_sink.execute_avrc_command(0x46);
+  // if (commandRequest & START_REQUEST)
+  // {
+  //   Serial.printf("Start/Stop\n");
+  //   if (a2dp_sink.is_i2s_active) // Fix ça
+  //                                // a2dp_sink.pause();
+  //     a2dp_sink.execute_avrc_command(0x46);
 
-    else
-      a2dp_sink.play();
-    commandRequest = commandRequest & ~START_REQUEST;
-  }
+  //   else
+  //     a2dp_sink.play();
+  //   commandRequest = commandRequest & ~START_REQUEST;
+  // }
 
   if (commandRequest & UP_REQUEST)
   {
-    // a2dp_sink.set_volume(a2dp_sink.get_volume() + 1);
-    // current_volume = current_volume < 14 ? current_volume + 1 : current_volume;
-    int testwtf = a2dp_sink.get_volume();
-    int tmp_current_volume = (a2dp_sink.get_volume() - 15) / 8 ;
-    tmp_current_volume = tmp_current_volume < 14 ? tmp_current_volume + 1 : tmp_current_volume;
-    a2dp_sink.set_volume(tmp_current_volume * 8 + 15);
+    // // a2dp_sink.set_volume(a2dp_sink.get_volume() + 1);
+    // // current_volume = current_volume < 14 ? current_volume + 1 : current_volume;
+    // int testwtf = a2dp_sink.get_volume();
+    // int tmp_current_volume = (a2dp_sink.get_volume() - 15) / 8 ;
+    // tmp_current_volume = tmp_current_volume < 14 ? tmp_current_volume + 1 : tmp_current_volume;
+    // a2dp_sink.set_volume(tmp_current_volume * 8 + 15);
 
-    Serial.printf("(up) Current Volume : %d-%d\n", a2dp_sink.get_volume(), tmp_current_volume);
-    // a2dp_sink.execute_avrc_command(0x41);
-    commandRequest = commandRequest & ~UP_REQUEST;
+    // Serial.printf("(up) Current Volume : %d-%d\n", a2dp_sink.get_volume(), tmp_current_volume);
+    // // a2dp_sink.execute_avrc_command(0x41);
+    // commandRequest = commandRequest & ~UP_REQUEST;
   }
 
   if (commandRequest & DOWN_REQUEST)
   {
-    // current_volume -= 1;
-    // current_volume = current_volume > 0 ? current_volume - 1 : current_volume;
-    int tmp_current_volume = (a2dp_sink.get_volume() - 15) / 8 ;
-    tmp_current_volume = tmp_current_volume > 0 ? tmp_current_volume - 1 : tmp_current_volume;
-    a2dp_sink.set_volume(tmp_current_volume * 8 + 15);
-    Serial.printf("(down) Current Volume : %d-%d\n", a2dp_sink.get_volume(), tmp_current_volume);
+    // // current_volume -= 1;
+    // // current_volume = current_volume > 0 ? current_volume - 1 : current_volume;
+    // int tmp_current_volume = (a2dp_sink.get_volume() - 15) / 8 ;
+    // tmp_current_volume = tmp_current_volume > 0 ? tmp_current_volume - 1 : tmp_current_volume;
+    // a2dp_sink.set_volume(tmp_current_volume * 8 + 15);
+    // Serial.printf("(down) Current Volume : %d-%d\n", a2dp_sink.get_volume(), tmp_current_volume);
 
-    commandRequest = commandRequest & ~DOWN_REQUEST;
+    // commandRequest = commandRequest & ~DOWN_REQUEST;
   }
   // Serial.printf("Active 1 : %d\n",a2dp_sink.spp_active);
   // Serial.printf("Active 2 : %d\n",a2dp_sink.player_init);

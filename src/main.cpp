@@ -3,7 +3,7 @@
 #include "BluetoothA2DPSink.h"
 
 // DEBUG VAR FOR INTERRUPTS
-#define DEBUG true
+#define DEBUG false
 
 BluetoothA2DPSink a2dp_sink;
 
@@ -45,7 +45,6 @@ volatile uint32_t downPressedTime = 0;
 
 volatile bool isUpPressed = false;
 volatile uint32_t upPressedTime = 0;
-
 
 volatile bool soundPlayed = false;
 /* Buttons Requests types */
@@ -102,13 +101,19 @@ void onBluetoothConnect2(esp_a2d_connection_state_t state, void *)
 {
   if (state == ESP_A2D_CONNECTION_STATE_CONNECTED)
   {
-    Serial.println("Bluetooth connected");
+    if (DEBUG)
+    {
+      Serial.println("Bluetooth connected");
+    }
     readSound(bluetooth_connected_wav, bluetooth_connected_wav_len);
   }
 
   if (state == ESP_A2D_CONNECTION_STATE_DISCONNECTED)
   {
-    Serial.println("Bluetooth disconnected");
+    if (DEBUG)
+    {
+      Serial.println("Bluetooth disconnected");
+    }
     readSound(bluetooth_disconnected_wav, bluetooth_disconnected_wav_len);
 
     // readSound(bluetooth_disconnected_wav, bluetooth_disconnected_wav_len);
@@ -130,7 +135,10 @@ void StartPressTask(void *parameter)
   }
   vTaskDelay(2000 / portTICK_PERIOD_MS);
 
-  Serial.println("Bike Groove Off");
+  if (DEBUG)
+  {
+    Serial.println("Bike Groove Off");
+  }
   soundPlayed = true;
   readSound(bike_groove_off_wav, bike_groove_off_wav_len);
 
@@ -138,23 +146,40 @@ void StartPressTask(void *parameter)
 
   soundPlayed = false;
   // Mettre en sommeil profond
-  Serial.println("Deep Sleep Actived");
+  if (DEBUG)
+  {
+    Serial.println("Deep Sleep Actived");
+  }
   digitalWrite(I2S_ENABLE, LOW);
   esp_deep_sleep_start();
-
+  StartPressTaskHandle = NULL;
   vTaskDelete(NULL);
 }
 
 void StartPressShortTask(void *parameter)
 {
+  if (DEBUG)
+  {
     Serial.printf("Start/Stop\n");
-    if (a2dp_sink.is_i2s_active) // Fix ça
-                                 // a2dp_sink.pause();
-      a2dp_sink.execute_avrc_command(0x46);
-    else
-      a2dp_sink.play();
-  vTaskDelete(NULL);
+    Serial.printf("Audio State : %d\n", a2dp_sink.get_audio_state());
+    // Serial.printf("Audio State : %d\n", a2dp_sink.get);
+  }
+  if (a2dp_sink.get_audio_state() == ESP_A2D_AUDIO_STATE_STARTED)
+  {
+    a2dp_sink.stop();
+  }
+  else
+  {
+    a2dp_sink.play();
+  }
 
+  // // set_on_audio_state_changed
+  // if (a2dp_sink.is_i2s_active) // Fix ça
+  //                              // a2dp_sink.pause();
+  //   a2dp_sink.execute_avrc_command(0x46);
+  // else
+  //   a2dp_sink.play();
+  vTaskDelete(NULL);
 }
 
 void IRAM_ATTR StartPress()
@@ -171,7 +196,10 @@ void IRAM_ATTR StartPress()
     }
     isStartPressed = true;
     startPressedTime = millis();
-    xTaskCreate(StartPressTask, "StartPressTask", 2048, NULL, 1, &StartPressTaskHandle);
+    if (StartPressTaskHandle == NULL)
+    {
+      xTaskCreate(StartPressTask, "StartPressTask", 2048, NULL, 1, &StartPressTaskHandle);
+    }
   }
   else if (isStartPressed == true)
   {
@@ -182,11 +210,15 @@ void IRAM_ATTR StartPress()
       {
         Serial.println("Start Button Short Press");
       }
+      if (StartPressTaskHandle != NULL)
+      {
+        vTaskDelete(StartPressTaskHandle);
+        StartPressTaskHandle = NULL;
+      }
+      
       xTaskCreate(StartPressShortTask, "StartPressShortTask", 2048, NULL, 1, &StartPressShortTaskHandle);
       // commandRequest |= START_REQUEST;
       // timerAlarmDisable(startPressTimer);
-      vTaskDelete(StartPressTaskHandle);
-      StartPressTaskHandle = NULL;
       // Stop Timer
     }
     else
@@ -204,21 +236,28 @@ void DownPressTask(void *parameter)
   {
     Serial.println("Down Button Long Press (Task)");
   }
-  vTaskDelay(500 / portTICK_PERIOD_MS);
+  vTaskDelay(1000 / portTICK_PERIOD_MS);
   // commandRequest |= PREVIOUS_REQUEST;
-  Serial.printf("Previous\n");
+  if (DEBUG)
+  {
+    Serial.printf("Previous\n");
+  }
   a2dp_sink.previous();
+  DownPressTaskHandle = NULL;
   vTaskDelete(NULL);
+
 }
 
 void DownPressShortTask(void *parameter)
 {
-    int tmp_current_volume = (a2dp_sink.get_volume() - 15) / 8 ;
-    tmp_current_volume = tmp_current_volume > 0 ? tmp_current_volume - 1 : tmp_current_volume;
-    a2dp_sink.set_volume(tmp_current_volume * 8 + 15);
+  int tmp_current_volume = (a2dp_sink.get_volume() - 15) / 8;
+  tmp_current_volume = tmp_current_volume > 0 ? tmp_current_volume - 1 : tmp_current_volume;
+  a2dp_sink.set_volume(tmp_current_volume * 8 + 15);
+  if (DEBUG)
+  {
     Serial.printf("(down) Current Volume : %d-%d\n", a2dp_sink.get_volume(), tmp_current_volume);
-
-  vTaskDelete(NULL);
+  }
+  vTaskDelete(NULL);//Set handle to 0 ?
 }
 
 void IRAM_ATTR DownPress()
@@ -231,23 +270,29 @@ void IRAM_ATTR DownPress()
   {
     isDownPressed = true;
     downPressedTime = millis();
-    xTaskCreate(DownPressTask, "DownPressTask", 2048, NULL, 1, &DownPressTaskHandle);
-
+    // Serial.printf("HANDLE V: %D\n", DownPressTaskHandle);
+    if (DownPressTaskHandle == NULL)
+    {
+      xTaskCreate(DownPressTask, "DownPressTask", 2048, NULL, 1, &DownPressTaskHandle);
+    }
   }
   else
   {
     isDownPressed = false;
-    if (millis() - downPressedTime < 500)
+    if (millis() - downPressedTime < 1000)
     {
       if (DEBUG)
       {
         Serial.println("Down Button Short Press");
       }
+      if (DownPressTaskHandle != NULL)
+      {
+        vTaskDelete(DownPressTaskHandle);
+        DownPressTaskHandle = NULL;
+      }
       xTaskCreate(DownPressShortTask, "DownPressShortTask", 2048, NULL, 1, &DownPressShortTaskHandle);
 
       // commandRequest |= DOWN_REQUEST;
-      vTaskDelete(DownPressTaskHandle);
-      DownPressTaskHandle = NULL;
     }
     else
     {
@@ -263,21 +308,27 @@ void UpPressTask(void *parameter)
   {
     Serial.println("Up Button Long Press (Task)");
   }
-  vTaskDelay(500 / portTICK_PERIOD_MS);
+  vTaskDelay(1000 / portTICK_PERIOD_MS);
   // commandRequest |= NEXT_REQUEST;
-  Serial.printf("Next\n");
+  if (DEBUG)
+  {
+    Serial.printf("Next\n");
+  }
   a2dp_sink.next();
+  UpPressTaskHandle = NULL;
   vTaskDelete(NULL);
 }
 
 void UpPressShortTask(void *parameter)
 {
-    int testwtf = a2dp_sink.get_volume();
-    int tmp_current_volume = (a2dp_sink.get_volume() - 15) / 8 ;
-    tmp_current_volume = tmp_current_volume < 14 ? tmp_current_volume + 1 : tmp_current_volume;
-    a2dp_sink.set_volume(tmp_current_volume * 8 + 15);
-
+  int testwtf = a2dp_sink.get_volume();
+  int tmp_current_volume = (a2dp_sink.get_volume() - 15) / 8;
+  tmp_current_volume = tmp_current_volume < 14 ? tmp_current_volume + 1 : tmp_current_volume;
+  a2dp_sink.set_volume(tmp_current_volume * 8 + 15);
+  if (DEBUG)
+  {
     Serial.printf("(up) Current Volume : %d-%d\n", a2dp_sink.get_volume(), tmp_current_volume);
+  }
   vTaskDelete(NULL);
 }
 
@@ -291,24 +342,28 @@ void IRAM_ATTR UpPress()
   {
     isUpPressed = true;
     upPressedTime = millis();
-    xTaskCreate(UpPressTask, "UpPressTask", 2048, NULL, 1, &UpPressTaskHandle);
-
+    if (UpPressTaskHandle == NULL)
+    {
+      xTaskCreate(UpPressTask, "UpPressTask", 2048, NULL, 1, &UpPressTaskHandle);
+    }
   }
   else
   {
     isUpPressed = false;
-    if (millis() - upPressedTime < 500)
+    if (millis() - upPressedTime < 1000)
     {
       if (DEBUG)
       {
         Serial.println("Up Button Short Press");
       }
-       xTaskCreate(UpPressShortTask, "UpPressShortTask", 2048, NULL, 1, &UpPressShortTaskHandle);
+      if (UpPressTaskHandle != NULL)
+      {
+        vTaskDelete(UpPressTaskHandle);
+        UpPressTaskHandle = NULL;
+      }
+      xTaskCreate(UpPressShortTask, "UpPressShortTask", 2048, NULL, 1, &UpPressShortTaskHandle);
 
       // commandRequest |= UP_REQUEST;
-      vTaskDelete(UpPressTaskHandle);
-      UpPressTaskHandle = NULL;
-
     }
     else
     {
@@ -318,29 +373,46 @@ void IRAM_ATTR UpPress()
   }
 }
 
+void callbackaudio(esp_a2d_audio_state_t state, void* param)
+{
+  Serial.printf("Callback state:%d\n", state);
+}
+
 void setup()
 {
   Serial.begin(115200);
-  pinMode(BLUE_LED, OUTPUT);   // Blue Led
-  pinMode(RED_LED, OUTPUT);    // Red Led
+  pinMode(BLUE_LED, OUTPUT); // Blue Led
+  pinMode(RED_LED, OUTPUT);  // Red Led
 
-  pinMode(VOLTAGE_PROBE, INPUT); // Voltage Probe
-  pinMode(USB_VOLTAGE_PROBE, INPUT);// USB Voltage Probe
-  pinMode(START_BUTTON, INPUT);  // Power
+  pinMode(VOLTAGE_PROBE, INPUT);     // Voltage Probe
+  pinMode(USB_VOLTAGE_PROBE, INPUT); // USB Voltage Probe
+  pinMode(START_BUTTON, INPUT);      // Power
   esp_sleep_enable_ext0_wakeup(START_BUTTON, 0);
   pinMode(DOWN_BUTTON, INPUT); // Down
   pinMode(UP_BUTTON, INPUT);   // Up
 
   pinMode(I2S_ENABLE, OUTPUT); // Enable I2S
-  float batteryLevel = (float)analogRead(VOLTAGE_PROBE) * 7.1 / 4096;  
+  float batteryLevel = (float)analogRead(VOLTAGE_PROBE) * 7.1 / 4096;
   digitalWrite(I2S_ENABLE, batteryLevel > 3.2 ? HIGH : LOW);
-if (batteryLevel < 3.2)
-{
-      Serial.println("test\n");
-      esp_deep_sleep_start();
 
-  // for(;;);
-}
+  if (DEBUG)
+  {
+    a2dp_sink.set_on_audio_state_changed_post(&callbackaudio);
+    a2dp_sink.set_on_audio_state_changed(&callbackaudio);
+  }
+
+
+  if (batteryLevel < 3.2)
+  {
+    if (DEBUG)
+    {
+      Serial.println("test\n");
+    }
+    digitalWrite(I2S_ENABLE, LOW);
+    esp_deep_sleep_start();
+
+    // for(;;);
+  }
   // Vérifie si l'ESP32 a été réveillé par le bouton
   if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0)
   {
@@ -359,7 +431,10 @@ if (batteryLevel < 3.2)
     // Si le bouton est relâché avant 2 secondes, remettre en deep sleep
     if (millis() - timePressed <= 2000)
     {
-      Serial.println("Start Button Pressed too quickly to wake up");
+      if (DEBUG)
+      {
+        Serial.println("Start Button Pressed too quickly to wake up");
+      }
       digitalWrite(I2S_ENABLE, LOW);
       esp_deep_sleep_start();
     }
@@ -388,13 +463,20 @@ void loop()
 {
   static bool ledState = false;
   float batteryLevel = (float)analogRead(VOLTAGE_PROBE) * 7.1 / 4096;
-  Serial.printf("Probe : %fV\n", batteryLevel);
+  if (DEBUG)
+  {
+    Serial.printf("Probe : %fV\n", batteryLevel);
+  }
   float usbVoltageLevel = (float)analogRead(USB_VOLTAGE_PROBE) * 7.1 / 4096;
-  Serial.printf("USB : %fV\n", usbVoltageLevel);
+  if (DEBUG)
+  {
+    Serial.printf("USB : %fV\n", usbVoltageLevel);
+  }
 
   if (usbVoltageLevel > 2.5)
   {
-
+    digitalWrite(I2S_ENABLE, LOW);
+    esp_deep_sleep_start(); 
   }
 
   if (ledState)
@@ -409,64 +491,4 @@ void loop()
 
   ledState = !ledState;
   delay(500); // do nothing
-
-  if (commandRequest & NEXT_REQUEST)
-  {
-    // Serial.printf("Next\n");
-    // a2dp_sink.next();
-    // commandRequest = commandRequest & ~NEXT_REQUEST;
-  }
-
-  if (commandRequest & PREVIOUS_REQUEST)
-  {
-    // Serial.printf("Previous\n");
-    // a2dp_sink.previous();
-    // commandRequest = commandRequest & ~PREVIOUS_REQUEST;
-  }
-
-  // if (commandRequest & START_REQUEST)
-  // {
-  //   Serial.printf("Start/Stop\n");
-  //   if (a2dp_sink.is_i2s_active) // Fix ça
-  //                                // a2dp_sink.pause();
-  //     a2dp_sink.execute_avrc_command(0x46);
-
-  //   else
-  //     a2dp_sink.play();
-  //   commandRequest = commandRequest & ~START_REQUEST;
-  // }
-
-  if (commandRequest & UP_REQUEST)
-  {
-    // // a2dp_sink.set_volume(a2dp_sink.get_volume() + 1);
-    // // current_volume = current_volume < 14 ? current_volume + 1 : current_volume;
-    // int testwtf = a2dp_sink.get_volume();
-    // int tmp_current_volume = (a2dp_sink.get_volume() - 15) / 8 ;
-    // tmp_current_volume = tmp_current_volume < 14 ? tmp_current_volume + 1 : tmp_current_volume;
-    // a2dp_sink.set_volume(tmp_current_volume * 8 + 15);
-
-    // Serial.printf("(up) Current Volume : %d-%d\n", a2dp_sink.get_volume(), tmp_current_volume);
-    // // a2dp_sink.execute_avrc_command(0x41);
-    // commandRequest = commandRequest & ~UP_REQUEST;
-  }
-
-  if (commandRequest & DOWN_REQUEST)
-  {
-    // // current_volume -= 1;
-    // // current_volume = current_volume > 0 ? current_volume - 1 : current_volume;
-    // int tmp_current_volume = (a2dp_sink.get_volume() - 15) / 8 ;
-    // tmp_current_volume = tmp_current_volume > 0 ? tmp_current_volume - 1 : tmp_current_volume;
-    // a2dp_sink.set_volume(tmp_current_volume * 8 + 15);
-    // Serial.printf("(down) Current Volume : %d-%d\n", a2dp_sink.get_volume(), tmp_current_volume);
-
-    // commandRequest = commandRequest & ~DOWN_REQUEST;
-  }
-  // Serial.printf("Active 1 : %d\n",a2dp_sink.spp_active);
-  // Serial.printf("Active 2 : %d\n",a2dp_sink.player_init);
-  // Serial.printf("Active 3 : %d\n",a2dp_sink.audio_type);
-  // Serial.printf("Active 4 : %d\n",a2dp_sink.bt_volumechange);
-  // Serial.printf("Active 5 : %d\n",a2dp_sink.is_i2s_active);
-  // Serial.printf("Active 6 : %d\n",a2dp_sink.rssi_active);
-  // Serial.printf("Active 6 : %d\n",a2dp_sink.pl);
-  // commandRequest = 0;
 }

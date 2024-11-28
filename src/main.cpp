@@ -82,20 +82,20 @@ void readSound(const uint8_t PROGMEM sound[], uint32_t sound_len)
 {
   a2dp_sink.set_i2s_active(true);
 
-  unsigned int totalLength = sound_len; // La longueur totale de audio_ble_wav
-  unsigned int offset = 0;              // Décalage actuel dans audio_ble_wav
+  unsigned int totalLength = sound_len; 
+  unsigned int offset = 0;              
 
   while (totalLength > 0)
   {
-    unsigned int currentChunkSize = min(chunkSize, totalLength); // Taille du chunk actuel
+    unsigned int currentChunkSize = min(chunkSize, totalLength); 
     for (unsigned int i = 0; i < currentChunkSize; i++)
     {
       audio_ble_wav_ram[i] = pgm_read_byte(&sound[offset + i]);
     }
     a2dp_sink.audio_data_callback((uint8_t *)audio_ble_wav_ram, currentChunkSize);
 
-    offset += currentChunkSize;      // Augmenter le décalage pour le prochain chunk
-    totalLength -= currentChunkSize; // Réduire la longueur totale restante
+    offset += currentChunkSize;      
+    totalLength -= currentChunkSize; 
   }
 }
 
@@ -117,8 +117,6 @@ void onBluetoothConnect2(esp_a2d_connection_state_t state, void *)
       Serial.println("Bluetooth disconnected");
     }
     readSound(bluetooth_disconnected_wav, bluetooth_disconnected_wav_len);
-
-    // readSound(bluetooth_disconnected_wav, bluetooth_disconnected_wav_len);
   }
 }
 
@@ -144,10 +142,9 @@ void StartPressTask(void *parameter)
   soundPlayed = true;
   readSound(bike_groove_off_wav, bike_groove_off_wav_len);
 
-  vTaskDelay(1000 / portTICK_PERIOD_MS); // Attendre 1 seconde pour le message vocal
+  vTaskDelay(1000 / portTICK_PERIOD_MS);
 
   soundPlayed = false;
-  // Mettre en sommeil profond
   if (DEBUG)
   {
     Serial.println("Deep Sleep Actived");

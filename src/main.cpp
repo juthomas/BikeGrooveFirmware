@@ -20,6 +20,8 @@ extern const uint32_t bluetooth_connected_wav_len;
 extern const uint8_t PROGMEM bluetooth_disconnected_wav[];
 extern const uint32_t bluetooth_disconnected_wav_len;
 
+volatile bool is_playing = false;
+
 /* Audio Tmp */
 const uint32_t chunkSize = 60000;
 uint8_t audio_ble_wav_ram[chunkSize];
@@ -164,13 +166,17 @@ void StartPressShortTask(void *parameter)
     Serial.printf("Audio State : %d\n", a2dp_sink.get_audio_state());
     // Serial.printf("Audio State : %d\n", a2dp_sink.get);
   }
-  if (a2dp_sink.get_audio_state() == ESP_A2D_AUDIO_STATE_STARTED)
+  // is_playing
+  // if (a2dp_sink.get_audio_state() == ESP_A2D_AUDIO_STATE_STARTED)
+  if (is_playing)
   {
     a2dp_sink.stop();
+    is_playing = false;
   }
   else
   {
     a2dp_sink.play();
+    is_playing = true;
   }
 
   // // set_on_audio_state_changed
@@ -375,7 +381,11 @@ void IRAM_ATTR UpPress()
 
 void callbackaudio(esp_a2d_audio_state_t state, void* param)
 {
-  Serial.printf("Callback state:%d\n", state);
+  if (DEBUG)
+  {
+    Serial.printf("Callback state:%d\n", state);
+  }
+  is_playing = state == ESP_A2D_AUDIO_STATE_STARTED;
 }
 
 void setup()
@@ -395,11 +405,11 @@ void setup()
   float batteryLevel = (float)analogRead(VOLTAGE_PROBE) * 7.1 / 4096;
   digitalWrite(I2S_ENABLE, batteryLevel > 3.2 ? HIGH : LOW);
 
-  if (DEBUG)
-  {
-    a2dp_sink.set_on_audio_state_changed_post(&callbackaudio);
-    a2dp_sink.set_on_audio_state_changed(&callbackaudio);
-  }
+  a2dp_sink.set_on_audio_state_changed(&callbackaudio);
+  // if (DEBUG)
+  // {
+  //   a2dp_sink.set_on_audio_state_changed_post(&callbackaudio);
+  // }
 
 
   if (batteryLevel < 3.2)
@@ -462,6 +472,8 @@ void setup()
 void loop()
 {
   static bool ledState = false;
+  digitalWrite(I2S_ENABLE, HIGH);
+
   float batteryLevel = (float)analogRead(VOLTAGE_PROBE) * 7.1 / 4096;
   if (DEBUG)
   {

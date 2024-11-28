@@ -164,10 +164,7 @@ void StartPressShortTask(void *parameter)
   {
     Serial.printf("Start/Stop\n");
     Serial.printf("Audio State : %d\n", a2dp_sink.get_audio_state());
-    // Serial.printf("Audio State : %d\n", a2dp_sink.get);
   }
-  // is_playing
-  // if (a2dp_sink.get_audio_state() == ESP_A2D_AUDIO_STATE_STARTED)
   if (is_playing)
   {
     a2dp_sink.stop();
@@ -179,12 +176,6 @@ void StartPressShortTask(void *parameter)
     is_playing = true;
   }
 
-  // // set_on_audio_state_changed
-  // if (a2dp_sink.is_i2s_active) // Fix ça
-  //                              // a2dp_sink.pause();
-  //   a2dp_sink.execute_avrc_command(0x46);
-  // else
-  //   a2dp_sink.play();
   vTaskDelete(NULL);
 }
 
@@ -223,15 +214,6 @@ void IRAM_ATTR StartPress()
       }
       
       xTaskCreate(StartPressShortTask, "StartPressShortTask", 2048, NULL, 1, &StartPressShortTaskHandle);
-      // commandRequest |= START_REQUEST;
-      // timerAlarmDisable(startPressTimer);
-      // Stop Timer
-    }
-    else
-    {
-      // Serial.println("Start Button Long Press");
-      // digitalWrite(I2S_ENABLE, LOW);
-      // esp_deep_sleep_start();
     }
   }
 }
@@ -243,7 +225,6 @@ void DownPressTask(void *parameter)
     Serial.println("Down Button Long Press (Task)");
   }
   vTaskDelay(1000 / portTICK_PERIOD_MS);
-  // commandRequest |= PREVIOUS_REQUEST;
   if (DEBUG)
   {
     Serial.printf("Previous\n");
@@ -263,7 +244,7 @@ void DownPressShortTask(void *parameter)
   {
     Serial.printf("(down) Current Volume : %d-%d\n", a2dp_sink.get_volume(), tmp_current_volume);
   }
-  vTaskDelete(NULL);//Set handle to 0 ?
+  vTaskDelete(NULL);
 }
 
 void IRAM_ATTR DownPress()
@@ -276,7 +257,6 @@ void IRAM_ATTR DownPress()
   {
     isDownPressed = true;
     downPressedTime = millis();
-    // Serial.printf("HANDLE V: %D\n", DownPressTaskHandle);
     if (DownPressTaskHandle == NULL)
     {
       xTaskCreate(DownPressTask, "DownPressTask", 2048, NULL, 1, &DownPressTaskHandle);
@@ -297,13 +277,6 @@ void IRAM_ATTR DownPress()
         DownPressTaskHandle = NULL;
       }
       xTaskCreate(DownPressShortTask, "DownPressShortTask", 2048, NULL, 1, &DownPressShortTaskHandle);
-
-      // commandRequest |= DOWN_REQUEST;
-    }
-    else
-    {
-      // Serial.println("Down Button Long Press");
-      // commandRequest |= PREVIOUS_REQUEST;
     }
   }
 }
@@ -315,7 +288,6 @@ void UpPressTask(void *parameter)
     Serial.println("Up Button Long Press (Task)");
   }
   vTaskDelay(1000 / portTICK_PERIOD_MS);
-  // commandRequest |= NEXT_REQUEST;
   if (DEBUG)
   {
     Serial.printf("Next\n");
@@ -368,13 +340,6 @@ void IRAM_ATTR UpPress()
         UpPressTaskHandle = NULL;
       }
       xTaskCreate(UpPressShortTask, "UpPressShortTask", 2048, NULL, 1, &UpPressShortTaskHandle);
-
-      // commandRequest |= UP_REQUEST;
-    }
-    else
-    {
-      // Serial.println("Up Button Long Press");
-      // commandRequest |= NEXT_REQUEST;
     }
   }
 }
@@ -406,11 +371,6 @@ void setup()
   digitalWrite(I2S_ENABLE, batteryLevel > 3.2 ? HIGH : LOW);
 
   a2dp_sink.set_on_audio_state_changed(&callbackaudio);
-  // if (DEBUG)
-  // {
-  //   a2dp_sink.set_on_audio_state_changed_post(&callbackaudio);
-  // }
-
 
   if (batteryLevel < 3.2)
   {
@@ -421,24 +381,18 @@ void setup()
     digitalWrite(I2S_ENABLE, LOW);
     esp_deep_sleep_start();
 
-    // for(;;);
   }
-  // Vérifie si l'ESP32 a été réveillé par le bouton
   if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0)
   {
     unsigned long timePressed = millis();
-    // Boucle tant que le bouton est pressé
     while (digitalRead(START_BUTTON) == LOW)
     {
-      // Si le bouton est pressé pendant plus de 2 secondes
       if (millis() - timePressed > 2000)
       {
-        // Sort de la boucle au bout de 2s
         break;
       }
     }
 
-    // Si le bouton est relâché avant 2 secondes, remettre en deep sleep
     if (millis() - timePressed <= 2000)
     {
       if (DEBUG)
